@@ -91,3 +91,11 @@
 - 验收解释：loop 拥有编排，不拥有 provider 翻译、工具业务或 UI 状态。
 - 证据边界：maxSteps 只限制模型回合数。provider 或工具若忽略 signal，本章没有
   提供墙钟超时或强制停止保证。
+
+## Checkpoint 08 · Coding tools
+
+- 起点：通用工具契约已闭合；本章只让工具真正接触文件系统与进程。
+- 目标：read 续读、原子 write、批量 exact edit、可取消/超时/截断的 bash。
+- 先预测：一批 edit 的第二项失败时，第一项能否留在磁盘；预取消 bash 是否应 spawn。
+- 可给提示：先把“全部在内存验证，再一次写回”写成不变量，再实现 atomic temp+rename。
+- 验收解释：workspace containment 是课程 guardrail，不是 OS sandbox，也不是上游 Pi 的既有保证。
