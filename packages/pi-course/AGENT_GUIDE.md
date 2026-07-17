@@ -42,3 +42,11 @@
 - 先预测：为什么 tool result 不能伪装成 assistant 文本；为什么 `textOf()` 不能用于恢复消息；两条 system message 先后出现时，哪一条是基础 prompt。
 - 可给提示：先写四种消息的所有权差异，再实现有损文本投影。system prompt 不是请求上的一个字符串，而是 transcript 里的 system message：开头一条是基础 prompt，之后的只追加 `content`、按名字覆盖或用 `null` 删除 `sections`；`currentSystemMessage()` 按顺序重放得到当前 prompt。
 - 验收解释：provider payload、canonical IR、UI 投影是三个层次；只有中间层能成为长期事实。重放是纯函数，不改写任何 system message。
+
+## Checkpoint 04 · ScriptedModel
+
+- 起点：消息与事件已经有类型，但没有确定性生产者。
+- 目标：让“模型下一回合做什么”成为可执行规格，而不是随机 mock 文本。
+- 先预测：一个含 text 和 toolCall 的最终消息会投影出哪些中间事件。
+- 可给提示：先写 final message → event trace 的纯投影，再处理脚本耗尽与预取消。
+- 验收解释：ScriptedModel 替代的是外部不确定性，不替代 Model 协议本身。
