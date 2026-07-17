@@ -74,3 +74,20 @@
   再给 `lookup → parse → execute → normalize` 伪代码；最后只揭示当前分支的局部代码。
 - 验收解释：工具异常是 Agent 可以观察的环境事实，不应直接炸穿 loop。signal
   只被原样传给工具；是否及时停止仍由工具实现负责。
+
+## Checkpoint 07 · Agent Loop
+
+- 起点：Model 与 Tool 都能独立工作；本章只增加反馈顺序和终止语义。
+- 目标：闭合 `model → tool calls → paired results → next model`，并准确处理
+  stop、error、aborted、length 与 maxSteps。
+- 第一条证据：学习脚手架应先通过 build；只运行“纯文本 stop”时，首红必须来自
+  `Lab 7.1`，而不是缺模块或级联类型错误。
+- 分段顺序：纯文本 stop `1/1` → 单工具往返与 system 不变量 `2/2` → 非执行终态 `2/2` →
+  并发工具 `2/2` → 取消与上限 `3/3` → 全量 `10/10`。
+- 先预测：两个工具并发时，完成事件顺序和 transcript 顺序为何可以不同；transcript 里的 system message 是否需要 loop 再单独传给模型。
+- system 不变量：请求只由 `messages` 与 `tools` 组成。loop 自己从不写入 system message，只追加 assistant 与 toolResult；交给模型的 `messages` 以调用方给的 messages（含其中的 system message）为前缀。折叠只发生在第 05 章 adapter 出线那一刻，不回写 transcript。
+- 可给提示：先指出当前 stop reason，再问这一分支是否允许执行工具。仍卡住时，给出
+  “追加哪条消息、继续还是结束”的伪代码；最后只展示当前分支。
+- 验收解释：loop 拥有编排，不拥有 provider 翻译、工具业务或 UI 状态。
+- 证据边界：maxSteps 只限制模型回合数。provider 或工具若忽略 signal，本章没有
+  提供墙钟超时或强制停止保证。
