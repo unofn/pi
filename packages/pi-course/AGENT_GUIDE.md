@@ -63,3 +63,14 @@
 - 验收解释：transport 负责网络，adapter 负责语义翻译，Agent 核心不出现 provider 字段。
 - 安全检查：transport 配置持有 API key；对外请求只允许它进入
   `Authorization` header，body、context、日志和向外返回的错误都不得包含密钥。
+
+## Checkpoint 06 · Tool contract
+
+- 起点：模型能声明 tool call，但环境还没有可信执行边界。
+- 目标：validator 收窄 `unknown`，Registry 固定本次动作空间，执行器再把成功与
+  可预期失败都变成结构化 `toolResult`。
+- 先预测：未知工具、参数错误和工具抛异常，哪一层拥有结果，call id 是否仍应相同。
+- 可给提示：依次定位 `validator → Registry → executor`。仍卡住时，先给接口签名，
+  再给 `lookup → parse → execute → normalize` 伪代码；最后只揭示当前分支的局部代码。
+- 验收解释：工具异常是 Agent 可以观察的环境事实，不应直接炸穿 loop。signal
+  只被原样传给工具；是否及时停止仍由工具实现负责。
