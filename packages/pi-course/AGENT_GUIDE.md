@@ -50,3 +50,16 @@
 - 先预测：一个含 text 和 toolCall 的最终消息会投影出哪些中间事件。
 - 可给提示：先写 final message → event trace 的纯投影，再处理脚本耗尽与预取消。
 - 验收解释：ScriptedModel 替代的是外部不确定性，不替代 Model 协议本身。
+
+## Checkpoint 05 · Provider adapter
+
+- 起点：上层只认识 canonical Model；本章只在边界引入 OpenAI-compatible wire/SSE。
+- 目标：出站翻译 messages/tools，入站按 index 累积增量参数，所有外部 JSON 先按 `unknown` 验证。
+- 先预测：`{"path":` 为什么不是坏 JSON；两个 tool call 的参数交错时为什么不能共用一个 buffer；transcript 中途出现的 system message 出线时应该留在原位还是折叠到开头。
+- system 折叠：OpenAI-compatible wire 只认一条开头 system。出站时用 `currentSystemPrompt(context.messages)` 重放成一条，再跳过所有 `role === "system"` 的消息；折叠只发生在出线那一刻，不回写 transcript。
+- 可给提示：先定位三层。出站映射只处理完整消息；adapter 按首次出现顺序累积
+  `ProviderChunk`；transport 再把 raw SSE 验证成这些 chunk。若仍卡住，只给当前
+  helper 的签名或单个分支的伪代码。
+- 验收解释：transport 负责网络，adapter 负责语义翻译，Agent 核心不出现 provider 字段。
+- 安全检查：transport 配置持有 API key；对外请求只允许它进入
+  `Authorization` header，body、context、日志和向外返回的错误都不得包含密钥。
