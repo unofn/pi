@@ -1,3 +1,9 @@
+import type {
+  AssistantMessage,
+  ModelEvent,
+  ModelStream,
+} from "./types.js";
+
 export class EventStream<T, R = T> implements AsyncIterable<T> {
   private readonly queue: T[] = [];
   private readonly waiting: Array<(value: IteratorResult<T>) => void> = [];
@@ -55,5 +61,21 @@ export class EventStream<T, R = T> implements AsyncIterable<T> {
       if (next.done) return;
       yield next.value;
     }
+  }
+}
+
+export class AssistantMessageEventStream
+  extends EventStream<ModelEvent, AssistantMessage>
+  implements ModelStream
+{
+  constructor() {
+    super(
+      (event) => event.type === "done" || event.type === "error",
+      (event) => {
+        if (event.type === "done") return event.message;
+        if (event.type === "error") return event.error;
+        throw new Error("非终态事件不能生成最终消息");
+      },
+    );
   }
 }
