@@ -4,6 +4,7 @@ import {
   type ToolRegistry,
 } from "./tool.js";
 import {
+  assistantMessage,
   type AgentContext,
   type AgentMessage,
   type AssistantMessage,
@@ -12,6 +13,7 @@ import {
   type TextContent,
   type ToolCall,
   type ToolResultMessage,
+  type UserMessage,
 } from "./types.js";
 
 export type LoopEvent =
@@ -40,6 +42,8 @@ export interface AgentLoopOptions {
   context: AgentContext;
   signal?: AbortSignal;
   onEvent?(event: LoopEvent): void;
+  takeSteeringMessages?(): UserMessage[];
+  takeFollowUpMessages?(): UserMessage[];
   executeToolCall?: ToolExecutor;
   /**
    * 课程增强：防止错误脚本无限循环。它不是上游 Pi 核心的同名保证。
@@ -109,6 +113,36 @@ function failedExecution(
   };
 }
 
+function canonicalToolResult(
+  call: ToolCall,
+  result: ToolResultMessage,
+): ToolResultMessage {
+  try {
+    return structuredClone(result);
+  } catch {
+    return failedExecution(
+      call,
+      new Error("tool result is not structured-cloneable"),
+    );
+  }
+}
+
+function failedModelTurn(
+  error: unknown,
+  aborted: boolean,
+): {
+  reason: "error" | "aborted";
+  message: AssistantMessage;
+} {
+  const reason = aborted ? "aborted" : "error";
+  const errorMessage =
+    error instanceof Error ? error.message : String(error);
+  return {
+    reason,
+    message: assistantMessage([], reason, { errorMessage }),
+  };
+}
+
 export async function runAgentLoop(
   options: AgentLoopOptions,
 ): Promise<AgentRunResult> {
@@ -134,20 +168,34 @@ export async function runAgentLoop(
     if (options.signal?.aborted) {
       return finish("aborted", steps - 1);
     }
-    // 请求只由 messages 与 tools 组成：system prompt 已经是 messages 里的
-    // system message，loop 不单独传递，也从不写入新的 system message。
-    const stream = options.model.stream(
-      {
-        messages,
-        tools: options.tools.definitions(),
-      },
-      { signal: options.signal },
-    );
+    let assistant: AssistantMessage;
+    try {
+      // 请求只由 messages 与 tools 组成：system prompt 已经是 messages 里的
+      // system message，loop 不单独传递，也从不写入新的 system message。
+      const stream = options.model.stream(
+        {
+          messages,
+          tools: options.tools.definitions(),
+        },
+        { signal: options.signal },
+      );
 
-    for await (const event of stream) {
-      emit(options, { type: "model_event", event });
+      for await (const event of stream) {
+        emit(options, { type: "model_event", event });
+      }
+      assistant = structuredClone(await stream.result());
+    } catch (error) {
+      const failed = failedModelTurn(
+        error,
+        options.signal?.aborted === true,
+      );
+      messages.push(failed.message);
+      emit(options, {
+        type: "assistant_message",
+        message: failed.message,
+      });
+      return finish(failed.reason, steps);
     }
-    const assistant = await stream.result();
     messages.push(assistant);
     emit(options, { type: "assistant_message", message: assistant });
     const calls = toolCalls(assistant);
@@ -185,6 +233,19 @@ export async function runAgentLoop(
         }
         return finish("error", steps);
       }
+      if (options.signal?.aborted) {
+        return finish("aborted", steps);
+      }
+      const steering = options.takeSteeringMessages?.() ?? [];
+      if (steering.length > 0) {
+        messages.push(...steering);
+        continue;
+      }
+      const followUps = options.takeFollowUpMessages?.() ?? [];
+      if (followUps.length > 0) {
+        messages.push(...followUps);
+        continue;
+      }
       return finish("stop", steps);
     }
 
@@ -197,16 +258,19 @@ export async function runAgentLoop(
       calls.map(async (call) => {
         let result: ToolResultMessage;
         try {
-          result = await executeToolCall(call, {
-            signal: options.signal,
-            reportProgress: (content) => {
-              emit(options, {
-                type: "tool_progress",
-                callId: call.id,
-                content,
-              });
-            },
-          });
+          result = canonicalToolResult(
+            call,
+            await executeToolCall(call, {
+              signal: options.signal,
+              reportProgress: (content) => {
+                emit(options, {
+                  type: "tool_progress",
+                  callId: call.id,
+                  content,
+                });
+              },
+            }),
+          );
         } catch (error) {
           // 注入的执行器不一定像 core executor 一样自行归一化异常。
           // 每个 call 都必须形成结果，且一个拒绝不能让同批兄弟结果丢失。
@@ -226,6 +290,8 @@ export async function runAgentLoop(
     if (options.signal?.aborted) {
       return finish("aborted", steps);
     }
+    const steering = options.takeSteeringMessages?.() ?? [];
+    messages.push(...steering);
   }
 
   return finish("maxSteps", maxSteps);

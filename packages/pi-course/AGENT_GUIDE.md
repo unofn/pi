@@ -99,3 +99,13 @@
 - 先预测：一批 edit 的第二项失败时，第一项能否留在磁盘；预取消 bash 是否应 spawn。
 - 可给提示：先把“全部在内存验证，再一次写回”写成不变量，再实现 atomic temp+rename。
 - 验收解释：workspace containment 是课程 guardrail，不是 OS sandbox，也不是上游 Pi 的既有保证。
+
+## Checkpoint 09 · Stateful Agent
+
+- 起点：loop 是一次纯运行；本章只增加跨运行状态与用户控制。
+- 目标：按 reducer、单运行、subscriber、副本、abort、steering/follow-up 五段建立有状态封装。
+- 教学文件：同时使用 `starters/09-agent.ts` 与 `starters/09-agent-loop.ts`；后者保留第 08 章 loop，只挖本章接缝。
+- 先预测：`run_end` listener 立刻启动下一轮时，旧运行还有没有权清理资源；后注册 listener 应先看到 end1 还是 start2；运行中途想改 system prompt 时，应该改写开头那条还是追加一条。
+- 可给提示：先让 `AgentEvent → AgentState` 忽略旧 runId，再给每次 prompt 一份独立 active-run 记录；重入事件用 FIFO 延后分发。
+- system 规则：构造参数 `systemPrompt` 非空时成为 transcript 开头的 `{ role: "system", timestamp: 0 }`；`agent.systemPrompt` 是只读的重放结果。要改 prompt 只能用 `prompt(value, { system })` 追加一条 system 补丁，它在本次运行开始、用户消息之前进入 transcript，与用户消息同属本次运行的新增部分；运行中途不能插入 system message。
+- 验收解释：已发生的工具事实不能被下一轮 model throw 抹掉；工具结果先变成可复制的 canonical message；同一 run 的 model/tool 共用 signal；状态、事件和返回结果不共享可变引用；abort 先于两个队列。
