@@ -18,3 +18,11 @@
 - 观察：user → model → tool → model 的反馈回路，以及 call id 的因果配对。
 - 可给提示：先让学习者给七个事件标注 owner，再定位缺失 tool result 的首次偏差。
 - 暂不讲：异步流、provider、并发、持久化。
+
+## Checkpoint 01 · TypeScript 与两条证据链
+
+- 起点：00 的固定轨迹，不改反馈回路。
+- 目标：用 tagged union、`unknown` 收窄、`never` 与 `node:test` 写出可执行协议。
+- 先制造：新增一个事件但不补 `switch`，让 `tsc` 报在穷尽检查处。
+- 可给提示：先指出 `event.type` 如何缩小类型；学习者仍卡住时再展示一个 `case` 骨架。
+- 验收解释：类型检查证明合法形状，行为测试证明给定输入下的输出；二者不能互相替代。
