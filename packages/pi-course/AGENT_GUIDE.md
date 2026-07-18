@@ -131,3 +131,15 @@
 - 验收解释：compaction 是追加到 session 的新事实，不会删除旧 entry；恢复只读取最新摘要，再从 `firstKeptEntryId` 投影后缀。metadata 和 sibling 不进入模型上下文。
 - system 投影：`buildContext` 不再接收 `systemPrompt`。它从整条 active path（包括 compaction 之前的部分）收集 system message，重放成一条 `currentSystemMessage` 放在最前面，计入 `tokens.system`；interaction 分组与摘要输入都排除 system message。结果是 `[当前 system message?, 压缩摘要?, ...保留的后缀]`。
 - 证据边界：本章没有自动 summarizer、自动写 store、tokenizer 精度保证或旧 schema 兼容层；`estimateTokens` 由调用者提供，并应是确定性的纯函数。
+
+## Checkpoint 12 · Resources 与 extensions
+
+- 起点：Agent 已经能从 session 构造有预算的上下文，但还不能从多个目录加载规则、skill 和模板，也没有受控的扩展入口。
+- 目标：依次完成资源优先级、skill 按需激活、模板上下文、扩展原子注册和 hook 故障隔离，共 `2/2 → 3/3 → 2/2 → 2/2 → 3/3`。
+- 教学文件：`starters/12-resources.ts` 固定本章公共表面。第一次 build 必须通过；Lab 12.1 的两条首红都应准确显示 `Lab 12.1 resource catalog 尚未实现`。
+- 先预测：两个 root 提供同名 skill 时，胜出者应由路径字母顺序还是调用者给出的 root 顺序决定；没有激活的 skill 正文是否应该进入模型上下文。
+- 可给提示：先把资源身份写成 `kind+name`，再按 root 输入顺序选 winner。处理 skill 文件时，先做字符串路径检查，再用 `realpath` 检查软链接最终落点。
+- 进入扩展部分前先问：如果 factory 注册了一个 tool 后抛错，这个 tool 还能不能留下；不受信任的扩展是否有机会运行 import 的顶层代码。
+- 验收解释：discovery 只收集 skill metadata，activation 才读取正文；`formatResourceContext` 只生成资源段落文本，作为 system message 的 `sections[RESOURCE_SECTION]`（`"pi-resources"`）进入 transcript，再由 Chapter 11 的 `buildContext` 重放；不再与基础 prompt 拼接成一个字符串。扩展先过 trust gate，再在 staging context 中注册，factory 成功后才统一提交。
+- 故障语义：`beforeToolCall` 拒绝、抛错或超时都会阻止 core executor，并返回与原 call 配对的错误结果；`afterToolResult` 对每个 core result 只运行一次，失败只写 diagnostic，不能改写已经发生的工具事实。
+- 证据边界：本章的 hook timeout 只能停止等待，不能强制终止扩展内部仍在运行的异步任务；resource root containment 是加载边界，不是操作系统 sandbox。
