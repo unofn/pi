@@ -158,3 +158,11 @@
 - 生命周期：`flush()` 等待已经接受的工作；`dispose()` 先关闭新入口，再等待此前已经入队的 prompt 落盘。不要因为 dispose 改变了状态，就取消已经被 Runtime 接受的工作。
 - mode 边界：`interactive` 和 `print` 都写最终 assistant 文本，`json` 写一行结构化结果。它们各自只调用一次 `Runtime.prompt`；交互循环、Agent 构造和 session 写入都不属于 mode。
 - 验收解释：composition root 拥有依赖接线，不重新实现 loop、store、context 或 extension 规则。`Runtime.control` 只暴露观察和控制能力，不绕过持久化入口暴露 `Agent.prompt`。
+
+## Checkpoint 14 · 独立评测与 held-out capstone
+
+- 起点与目标：完整 Runtime 已经能执行任务，但“程序跑完”不等于“任务做对”。本章在 `test-support/eval.ts` 建立独立评测层；每个 case 都重新 `prepare`，runner 独占执行、取证、`dispose` 和 `cleanup` 的顺序，judge 只返回任务检查结果。
+- 教学入口：`starters/14-eval.ts` 固定完整公共表面，`starters/14-tsconfig.json` 只把 `test-support` 加入编译。第一次 build 必须通过；只运行 Lab 14.1 时，三条测试都应准确显示 `Lab 14.1 runEvalCase 尚未实现`，结果是 `0/3`。
+- 公开施工顺序：先完成隔离执行与冻结 observation `3/3`，再完成 active-path 协议和失败分层 `4/4`，最后完成安全报告、主次 cleanup 与顺序 suite `3/3`。协议判断必须同时核对 session path 与 Runtime 返回的 transcript；报告不能携带原始消息、文件内容、路径、callId、异常正文或 stack。
+- system message：active path 校验接受 `role: "system"`（开头的基础 prompt 和之后的补丁都是普通 message entry），它们只计入 `evidence.messages.system`，不参与 tool call / result 配对检查，也不能替代缺失的 tool result。
+- held-out 边界：Lab 14.4 的三项测试只存在于 target 和最终 full gate，`practice 14` 不会复制它们。它们会更换 case id、prompt、路径、callId 和故障参数；陪练只能根据公开契约解释失败，不能读取或转述 held-out fixture。
