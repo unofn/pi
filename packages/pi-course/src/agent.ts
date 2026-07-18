@@ -18,7 +18,12 @@ export interface AgentOptions {
   model: Model;
   tools: ToolRegistry;
   toolExecutor?: ToolExecutor;
-  /** 非空时成为 transcript 开头的 system message（基础 prompt）。 */
+  /** 恢复出的 transcript；构造时深复制。 */
+  initialMessages?: readonly AgentMessage[];
+  /**
+   * 非空时成为 transcript 开头的 system message（基础 prompt）；
+   * 若 initialMessages 已经以 system message 开头，则以 transcript 为准。
+   */
   systemPrompt?: string;
   maxSteps?: number;
 }
@@ -147,10 +152,16 @@ export class Agent {
   private nextRunId = 1;
 
   constructor(private readonly options: AgentOptions) {
-    // systemPrompt 不是请求上的字段，而是 transcript 开头的 system message。
-    const messages: AgentMessage[] = options.systemPrompt
-      ? [{ role: "system", content: options.systemPrompt, timestamp: 0 }]
-      : [];
+    // systemPrompt 不是请求上的字段，而是 transcript 开头的 system message；
+    // 已恢复的 transcript 若已有开头 system message，配置不覆盖它。
+    const messages: AgentMessage[] = [...clone(options.initialMessages ?? [])];
+    if (messages[0]?.role !== "system" && options.systemPrompt) {
+      messages.unshift({
+        role: "system",
+        content: options.systemPrompt,
+        timestamp: 0,
+      });
+    }
     this.state = {
       status: "idle",
       messages,

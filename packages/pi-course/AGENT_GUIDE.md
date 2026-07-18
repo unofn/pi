@@ -143,3 +143,18 @@
 - 验收解释：discovery 只收集 skill metadata，activation 才读取正文；`formatResourceContext` 只生成资源段落文本，作为 system message 的 `sections[RESOURCE_SECTION]`（`"pi-resources"`）进入 transcript，再由 Chapter 11 的 `buildContext` 重放；不再与基础 prompt 拼接成一个字符串。扩展先过 trust gate，再在 staging context 中注册，factory 成功后才统一提交。
 - 故障语义：`beforeToolCall` 拒绝、抛错或超时都会阻止 core executor，并返回与原 call 配对的错误结果；`afterToolResult` 对每个 core result 只运行一次，失败只写 diagnostic，不能改写已经发生的工具事实。
 - 证据边界：本章的 hook timeout 只能停止等待，不能强制终止扩展内部仍在运行的异步任务；resource root containment 是加载边界，不是操作系统 sandbox。
+
+## Checkpoint 13 · Composition root 与运行模式
+
+- 起点：Agent、session、context、resources 和 extensions 都能独立工作，但还没有一个地方负责把它们接成同一套运行时。
+- 目标：依次完成 Runtime 组装、模型请求前的 context 投影、可靠持久化和三种单轮 mode，共 `2/2 → 3/3 → 4/4 → 2/2`。
+- 教学文件：`starters/13-composition.ts` 固定 Runtime 的公共表面。第一次 build 必须通过；Lab 13.1 的两条首红都应准确显示 `Lab 13.1 createRuntime 尚未实现`。本章还要在 `agent.ts` 增加很小的 `initialMessages` 接缝，并在构造时深复制历史；若恢复出的 transcript 已经以 system message 开头，构造参数 `systemPrompt` 不再覆盖它。
+- 分段边界：Lab 13.1 只组装 Runtime 外壳，不调用 `prompt`。starter 已经让 `RuntimeImpl.prompt/flush/dispose` 明确报 `Lab 13.3 prompt persistence 尚未实现`，所以第一步不需要提前解决持久化。
+- 先预测：session 有两个分支时，Runtime 能不能自行猜测继续哪一个；一次 prompt 已经得到模型结果，但 session 还没有写完时，这个 prompt 能不能先返回。
+- 可给提示：先让 `activeLeafId` 成为必填的 nullable 字段。空 session 只能传 `null`；非空 session 必须明确选择 leaf，再用 `pathTo` 恢复那条路径。
+- context 投影：Lab 13.2 只处理 model adapter。Agent 保留完整 transcript；每次请求模型前，把尚未持久化的 suffix 临时接到 active path，再交给 Chapter 11 的 `buildContext`。tools 和同一个 abort signal 仍要传给 inner model。
+- system 状态：期望状态是 `content = config.systemPrompt`、`sections = { "pi-resources": 资源文本 }`（资源为空则不含该段）。每次 `prompt()` 前用恢复出的 transcript 重放当前 system 状态：还没有任何 system message 且期望非空时，在本轮输入前放一条开头 system message；已有时只比较段落，只为变化的段落生成补丁（删除为 `null`），无变化则不追加。基础 prompt 只在第一次写入；恢复会话后若配置与 transcript 的基础 prompt 不同，以 transcript 为准。补丁经 `agent.prompt(value, { system })` 与用户消息一起成为本轮 suffix，按原有规则持久化；已持久化的前缀永不改写。
+- 持久化顺序：进入 Lab 13.3 后，再让 extension host 包住核心 ToolExecutor。每次 prompt 只追加本轮新增的 message suffix（含 system 补丁），并等待全部 append 完成。并发调用在 Runtime 层排队；一旦 append 失败，Runtime 进入 poison 状态，后续 prompt 和 flush 都必须看到同一个失败。
+- 生命周期：`flush()` 等待已经接受的工作；`dispose()` 先关闭新入口，再等待此前已经入队的 prompt 落盘。不要因为 dispose 改变了状态，就取消已经被 Runtime 接受的工作。
+- mode 边界：`interactive` 和 `print` 都写最终 assistant 文本，`json` 写一行结构化结果。它们各自只调用一次 `Runtime.prompt`；交互循环、Agent 构造和 session 写入都不属于 mode。
+- 验收解释：composition root 拥有依赖接线，不重新实现 loop、store、context 或 extension 规则。`Runtime.control` 只暴露观察和控制能力，不绕过持久化入口暴露 `Agent.prompt`。
