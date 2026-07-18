@@ -120,3 +120,14 @@
 - 可给提示：先把“换行是 commit marker”和“parent 必须指向已提交 id”写成不变量。实现 store 时再拆成调用时快照、FIFO、append-only、tainted 四个状态事实。
 - 验收解释：`pathTo` 只验证活动祖先链，但重复 id 会在全库制造歧义；metadata 不进入模型上下文；tool call/result 不能经过 `textOf()` 丢失结构。
 - 证据边界：JSONL store 只保证单个实例内的 FIFO 和 fail-closed；本章没有跨进程锁、`fsync`、自动修复或 compaction。
+
+## Checkpoint 11 · Context compaction
+
+- 起点：session 已能可靠追加和恢复，但把全部历史交给模型会耗尽 context；本章只增加不破坏原日志的上下文投影。
+- 目标：依次完成严格 compaction schema、interaction 配对、预算投影、纯 entry 创建和恢复/再次压缩，共 `3/3 → 3/3 → 3/3 → 2/2 → 4/4`。
+- 教学文件：同时使用 `starters/11-session.ts` 与 `starters/11-context.ts`。第一次 build 必须通过；Lab 11.1 的三条首红都应准确显示 `Lab 11.1 compaction entry 尚未实现`。
+- 先预测：两个 tool result 反序完成时，能否按数组相邻位置切历史；一个最新 interaction 单独超限时，应该丢掉半组工具事实还是保留整组并报告溢出。
+- 可给提示：先把 `user` 标成 group 起点，再用 `callId` 建立集合相等关系。预算选择从最新 group 向前累加，system、输出预留和安全余量必须先扣除。
+- 验收解释：compaction 是追加到 session 的新事实，不会删除旧 entry；恢复只读取最新摘要，再从 `firstKeptEntryId` 投影后缀。metadata 和 sibling 不进入模型上下文。
+- system 投影：`buildContext` 不再接收 `systemPrompt`。它从整条 active path（包括 compaction 之前的部分）收集 system message，重放成一条 `currentSystemMessage` 放在最前面，计入 `tokens.system`；interaction 分组与摘要输入都排除 system message。结果是 `[当前 system message?, 压缩摘要?, ...保留的后缀]`。
+- 证据边界：本章没有自动 summarizer、自动写 store、tokenizer 精度保证或旧 schema 兼容层；`estimateTokens` 由调用者提供，并应是确定性的纯函数。

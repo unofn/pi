@@ -41,9 +41,28 @@ export interface MetadataSessionEntry extends EntryBase {
   value: JsonValue;
 }
 
+export interface CompactionSummary {
+  goal: string;
+  constraints: string[];
+  completed: string[];
+  decisions: string[];
+  changedFiles: string[];
+  unresolved: string[];
+  next: string[];
+}
+
+export interface CompactionSessionEntry extends EntryBase {
+  type: "compaction";
+  parentId: string;
+  summary: CompactionSummary;
+  firstKeptEntryId: string;
+  tokensBefore: number;
+}
+
 export type SessionEntry =
   | MessageSessionEntry
-  | MetadataSessionEntry;
+  | MetadataSessionEntry
+  | CompactionSessionEntry;
 
 export interface SessionStore {
   append(entry: SessionEntry): Promise<void>;
@@ -286,6 +305,62 @@ function systemMessageAt(
   return message;
 }
 
+function stringArrayAt(value: unknown, label: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} 必须是 string[]`);
+  }
+  return value.map((item, index) => {
+    if (typeof item !== "string") {
+      throw new Error(`${label}[${index}] 必须是 string`);
+    }
+    return item;
+  });
+}
+
+function compactionSummaryAt(
+  value: unknown,
+  label: string,
+): CompactionSummary {
+  const record = recordAt(value, label);
+  exactKeys(
+    record,
+    [
+      "goal",
+      "constraints",
+      "completed",
+      "decisions",
+      "changedFiles",
+      "unresolved",
+      "next",
+    ],
+    label,
+  );
+  return {
+    goal: nonEmptyString(record.goal, `${label}.goal`),
+    constraints: stringArrayAt(
+      record.constraints,
+      `${label}.constraints`,
+    ),
+    completed: stringArrayAt(
+      record.completed,
+      `${label}.completed`,
+    ),
+    decisions: stringArrayAt(
+      record.decisions,
+      `${label}.decisions`,
+    ),
+    changedFiles: stringArrayAt(
+      record.changedFiles,
+      `${label}.changedFiles`,
+    ),
+    unresolved: stringArrayAt(
+      record.unresolved,
+      `${label}.unresolved`,
+    ),
+    next: stringArrayAt(record.next, `${label}.next`),
+  };
+}
+
 function userMessageAt(
   record: Record<string, unknown>,
   label: string,
@@ -485,8 +560,51 @@ export function parseSessionEntry(value: unknown): SessionEntry {
       ),
     };
   }
+  if (record.type === "compaction") {
+    exactKeys(
+      record,
+      [
+        "id",
+        "parentId",
+        "timestamp",
+        "type",
+        "summary",
+        "firstKeptEntryId",
+        "tokensBefore",
+      ],
+      `session entry ${base.id}`,
+    );
+    if (base.parentId === null) {
+      throw new Error(
+        `session compaction ${base.id}.parentId 必须是 string`,
+      );
+    }
+    const tokensBefore = finiteNumber(
+      record.tokensBefore,
+      `session compaction ${base.id}.tokensBefore`,
+    );
+    if (tokensBefore < 0) {
+      throw new Error(
+        `session compaction ${base.id}.tokensBefore 不能小于 0`,
+      );
+    }
+    return {
+      ...base,
+      type: "compaction",
+      parentId: base.parentId,
+      summary: compactionSummaryAt(
+        record.summary,
+        `session compaction ${base.id}.summary`,
+      ),
+      firstKeptEntryId: nonEmptyString(
+        record.firstKeptEntryId,
+        `session compaction ${base.id}.firstKeptEntryId`,
+      ),
+      tokensBefore,
+    };
+  }
   throw new Error(
-    `session entry ${base.id}.type 不是 message 或 metadata`,
+    `session entry ${base.id}.type 不是 message、metadata 或 compaction`,
   );
 }
 
