@@ -109,3 +109,14 @@
 - 可给提示：先让 `AgentEvent → AgentState` 忽略旧 runId，再给每次 prompt 一份独立 active-run 记录；重入事件用 FIFO 延后分发。
 - system 规则：构造参数 `systemPrompt` 非空时成为 transcript 开头的 `{ role: "system", timestamp: 0 }`；`agent.systemPrompt` 是只读的重放结果。要改 prompt 只能用 `prompt(value, { system })` 追加一条 system 补丁，它在本次运行开始、用户消息之前进入 transcript，与用户消息同属本次运行的新增部分；运行中途不能插入 system message。
 - 验收解释：已发生的工具事实不能被下一轮 model throw 抹掉；工具结果先变成可复制的 canonical message；同一 run 的 model/tool 共用 signal；状态、事件和返回结果不共享可变引用；abort 先于两个队列。
+
+## Checkpoint 10 · Session tree 与 JSONL
+
+- 起点：Agent 只在内存中保存一条 transcript；本章只增加可分支、可恢复的事实日志。
+- 目标：依次完成 path、严格收窄、内存 store、JSONL recovery、磁盘 store 和消息投影，共 `2/2 → 3/3 → 2/2 → 3/3 → 3/3 → 2/2`。
+- system message 就是普通 `message` entry，没有新的 entry 类型：parser 接受 `role: "system"`，校验 `content` 为 string、`sections` 为 `string | null` 值的对象；`null` 是删除指令，必须原样持久化。
+- 教学文件：`starters/10-session.ts` 固定完整公共表面；第一次 build 必须通过，Lab 10.1 的首红应准确显示 `Lab 10.1 pathTo 尚未实现`。
+- 先预测：若最后一段 JSON 看起来完整但没有换行，它算事实还是猜测；一次 append 只写了一半并报错后，同一个 writer 还能否安全续写。
+- 可给提示：先把“换行是 commit marker”和“parent 必须指向已提交 id”写成不变量。实现 store 时再拆成调用时快照、FIFO、append-only、tainted 四个状态事实。
+- 验收解释：`pathTo` 只验证活动祖先链，但重复 id 会在全库制造歧义；metadata 不进入模型上下文；tool call/result 不能经过 `textOf()` 丢失结构。
+- 证据边界：JSONL store 只保证单个实例内的 FIFO 和 fail-closed；本章没有跨进程锁、`fsync`、自动修复或 compaction。
