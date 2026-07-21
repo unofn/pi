@@ -1,4 +1,4 @@
-# 造一个 Pi · commit 教材
+# 动手学 Pi · commit 教材
 
 这不是上游实现的缩写版，而是一条为学习设计的累积历史。分支
 `course/build-your-own-pi` 从 Pi 上游固定提交 `8479bd84` 出发；章节

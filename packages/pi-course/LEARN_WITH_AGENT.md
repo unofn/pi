@@ -21,7 +21,7 @@ target 的聚焦测试。少数代码量陡增的章节还会加入 learning-onl
 把下面这段交给陪学 Agent，并把 `<NN>` 换成章节号：
 
 ```text
-我们正在学习“造一个 Pi”的第 <NN> 章。
+我们正在学习《动手学 Pi》的第 <NN> 章。
 请先运行 npm run checkpoint -w @pi/course -- <NN>，
 再运行 npm run practice -w @pi/course -- <NN>，
 阅读输出中的 target commit、它的 parent、隔离目录中的 LEARNING.md、

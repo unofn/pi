@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "造一个 Pi 教材的逐章可执行实现",
+  "description": "《动手学 Pi》教材的逐章可执行实现",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
