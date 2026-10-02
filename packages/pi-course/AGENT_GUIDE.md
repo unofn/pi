@@ -178,3 +178,17 @@
 - 可给提示：先让学习者在纸上写出一张五行表（exposure → 声明？可调用？），再实现 `declared()` / `callable()`；补丁实现卡住时，只给“重放 → 比较 → 空则不追加”的伪代码。
 - 验收解释：provider 仍从 `context.tools` 读工具（第 05 章 adapter 不变），transcript 里的声明是“模型当时看到了什么”的事实记录；补丁只追加，`toolsRemoved` 也只在新补丁里出现，已持久化前缀永不改写。严格 parser 要求 `toolsAdded` / `toolsRemoved` 非空：空列表由 loop 省略字段表达。
 - 证据边界：课程排序用词项重叠，不是上游的 BM25；`codemode` 暴露在本章只决定“可调用、可搜索、不声明”，脚本真正调用它留到第 16 章。
+
+## Checkpoint 16 · Codemode：让模型写脚本调用工具
+
+- 起点：第 15 章的可调用集合只被 `executeToolCall(…, "script")` 认得，还没有人以脚本身份调用；本章只增加一个能跑脚本的沙箱和一个 `model-only` 的 `codemode` 工具。
+- 目标：依次完成沙箱与消息桥 `5/5`、嵌套调用与有界记录 `3/3`、deadline 与取消 `2/2`、codemode 工具与 loop 接入 `3/3`。
+- 教学文件：`starters/16-codemode-protocol.ts`（给定的协议与 prelude）、`starters/16-codemode-worker.ts`（Lab 16.1）、`starters/16-codemode.ts`（Lab 16.1–16.4）。本章加入第一个运行时依赖 `quickjs-wasi@3.6.2`（与上游 `packages/codemode` 同版本）。第一次 build 必须通过；首红来自 Lab 16.1：worker 报 `Lab 16.1 codemode worker 尚未实现`，宿主报 `Lab 16.1 Execution.start 尚未实现`。
+- 先预测：脚本 `for (;;) {}` 时宿主线程会不会被卡住；脚本调用一个 `deferred` 工具是否需要先 `tool_search`；一个嵌套调用参数校验失败，`Promise.all` 里的其他调用会不会丢失。
+- 结构：每次执行新建一个 worker 线程，worker 里新建一个 QuickJS（WASM）VM，设 `memoryLimit` 与 `interruptHandler`；脚本的 `tools.<name>(args)` 经 prelude 的桥变成 `call{id,name,args}` 消息，宿主执行后回 `result{id,ok,payload}`；参数与结果都是 JSON 字符串。VM 里没有计时器与 I/O，所以“没有在途调用却还没结束”立刻判定为 stalled。
+- 嵌套调用：宿主用 `createNestedToolBridge(registry, parentCallId)` 把可调用集合变成脚本工具表；每次调用是一个 id 为 `<parent>/<n>` 的 ToolCall，走第 06 章的校验与执行（`scope: "script"`）。嵌套调用不进入 transcript，只以有界记录（`NESTED_CALL_LIMITS`：条数、参数字节、错误字符数）出现在父结果的 `details.nestedCalls` 上；超过上限的调用照样执行，只是不记录；结果从不记录。
+- 超时与取消：宿主持有 deadline 与 `AbortSignal`；到期或取消时先置中断标志再 `worker.terminate()`，未完成的嵌套调用收到 abort 信号并记为 `cancelled`。读取不存在的 `tools.<name>` 立刻抛出带近似名的 TypeError（上游 1.0 的 Proxy 行为）。
+- 可给提示：先让学习者画出三个参与者（宿主、worker、VM）与两种消息，再实现 `start → handleMessage → handleCall → finish` 的顺序；嵌套桥卡住时只给“生成 call → executeToolCall → isError 则抛错 → 记录”的伪代码。
+- 验收解释：`codemode` 是 `model-only`：它本身在声明集合里，脚本不能递归调用它；脚本可以调用尚未声明的 `codemode` / `deferred` 工具，所以声明集合保持不变（`currentTools` 里没有它们）。失败时 `isError` 与 `details.error.kind`（`script` / `timeout` / `aborted` / `sandbox`）一起交给模型，loop 继续；loop 的 abort 让脚本以 `aborted` 结束。
+- 输出上限：给定的 prelude 对 `console.*` 计数，总字符超过 `MAX_OUTPUT_CHARS`（16 Mi）或次数超过 `MAX_OUTPUT_ITEMS`（10 万）时先以 `RangeError` 结束脚本，宿主只保留上限内的输出；这对应上游 v1.0.0 之后的修复（提交 319fecb89），防止循环打印耗尽宿主内存。
+- 证据边界：课程不实现上游的 `store()`、`image()`、`models`、`searchTools()` 与输出截断；嵌套调用走核心 `executeToolCall`，不经过第 12 章的 extension hook（可通过 `executeToolCall` 选项注入）；超时与取消用共享中断标志（`SharedArrayBuffer` 里的 Int32，由 QuickJS 的 interruptHandler 轮询）加 `worker.terminate()`；上游保留这个标志主要是为 Bun，它的 terminate 停不下空转的 wasm。

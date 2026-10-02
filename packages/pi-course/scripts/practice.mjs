@@ -142,6 +142,26 @@ const starterOverlays = {
         "tool-search.ts 给出分词与检索文本，排序与 tool_search 的激活逻辑留作 Lab 15.4 施工位。",
     },
   ],
+  "16": [
+    {
+      source: "starters/16-codemode-protocol.ts",
+      destination: "src/codemode-protocol.ts",
+      description:
+        "codemode-protocol.ts 给出宿主与 worker 的消息类型和 VM 内的 prelude（tools 代理、近似名建议、settle/run/stalled），与参考实现相同；它是给定的协议，不是本章要重建的部分。",
+    },
+    {
+      source: "starters/16-codemode-worker.ts",
+      destination: "src/codemode-worker.ts",
+      description:
+        "codemode-worker.ts 只保留 worker 的辅助函数与入口，QuickJS VM 的创建、桥接与脚本求值留作 Lab 16.1 施工位。",
+    },
+    {
+      source: "starters/16-codemode.ts",
+      destination: "src/codemode.ts",
+      description:
+        "codemode.ts 固定脚本结果、嵌套记录与 codemode 工具的公共表面，并保留 Execution 的消息分发与 finish；worker 启动与调用桥（Lab 16.1）、嵌套桥（Lab 16.2）、deadline 与取消（Lab 16.3）、工具执行（Lab 16.4）留空。",
+    },
+  ],
 };
 
 if (!requested || !/^\d{2}$/.test(requested)) {
@@ -273,6 +293,17 @@ try {
     await writeFile(
       path.join(output, "packages/pi-course/AGENT_GUIDE.md"),
       currentGuide,
+    );
+
+    // 本章的 package.json 可能比 parent 多出运行时依赖（第 16 章的 quickjs-wasi），
+    // 先放进沙箱，npm install 才不会把它当作多余依赖裁掉。
+    await writeFile(
+      path.join(output, "packages/pi-course/package.json"),
+      execFileSync(
+        "git",
+        ["show", `${row.commit}:packages/pi-course/package.json`],
+        { cwd: repoRoot },
+      ),
     );
 
     for (const overlay of starterOverlays[requested] ?? []) {
