@@ -214,6 +214,14 @@ const starterOverlays = {
         "virtual-models.ts 固定 VirtualModel、目录与路由器的公共表面；previous 与路由解析（Lab 18.1）、分支上的选择、状态与路由器（Lab 18.3）留空。",
     },
   ],
+  "19": [
+    {
+      source: "starters/19-durable.ts",
+      destination: "src/durable.ts",
+      description:
+        "durable.ts 固定存储、会话、任务记录与 harness 的公共表面，保留读取、prompt、流式提交与工具的 execute/settle；原子提交与单一变更线（Lab 19.1）、打开与调度（Lab 19.2）、工具意图与回放（Lab 19.3）、部分输出恢复（Lab 19.4）留空。",
+    },
+  ],
 };
 
 if (!requested || !/^\d{2}$/.test(requested)) {

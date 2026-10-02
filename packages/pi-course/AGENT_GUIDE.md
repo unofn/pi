@@ -219,3 +219,19 @@
 - 可给提示：先让学习者把“选择”和“派发”分别对应到 session entry 与 assistant 消息，再实现 `resolveRoute`；Runtime 接入卡住时，先问“钩子记录的状态什么时候落盘、落在哪条消息之后”。
 - 验收解释：路由不改写 transcript——钩子看到的 `context` 是 loop 的活对象，之后 loop 只会往后追加；恢复会话时，从 active path 重放出选择与状态，第三次路由从 `count=2` 继续。
 - 证据边界：课程的 `retry` 只来自直接重发的 transcript 形状，loop 自己不重试；`thinkingLevel` 只随 `stream(context, options)` 传给物理模型，第 05 章 adapter 不解释它；上游还会把虚拟模型列进 provider 目录并做 thinking level 的裁剪，课程只在 `:::pi` 中说明。
+
+## Checkpoint 19 · Durable：先提交，再可见
+
+- 起点：第 13 章的 Runtime 在一次 prompt 结束后才把本轮 suffix 写进 session；进程在中途崩溃时，模型的部分输出与正在执行的工具都没有任何记录。本章在旁边建一个最小 durable harness，只讲四个机制，不改 Runtime。
+- 目标：依次完成原子提交与单一变更线 `3/3`、任务与重新打开 `2/2`、工具意图与回放 `3/3`、部分输出恢复 `2/2`。
+- 教学文件：`starters/19-durable.ts`。第一次 build 必须通过；首红应准确显示 `Lab 19.1 DurableStore.commit 尚未实现`。
+- 先预测：一批写入里有一条不合法，其他几条该不该落盘；进程在工具 `execute()` 进行到一半时崩溃，重启后该不该再跑一次；模型已经流出一半文字时崩溃，这半句话该放在哪里。
+- 四个机制：
+  1. 先提交再可见：`DurableSession.commit(change)` 把所有提交排在一条 promise 链上；`change` 只收集写入，返回后整批交给 `DurableStore.commit`（原子：有一条不合法整批拒绝），存储成功后才更新可见状态。副作用（调模型、跑工具）绝不在 `change` 里做。
+  2. 重新打开：`DurableHarness.open` 把 `running` 的任务改回 `pending`——上一个进程可能正跑到一半。检查点整条替换。
+  3. 工具意图：`runTool` 在 `execute()` 之前提交 `{ phase: "execute", arguments, replay }`。恢复时只有存储的意图与当前注册都是 `replay: "safe"` 才重跑，否则给模型一条 `interrupted` 错误结果（任务 `failed`），下一轮照常继续。
+  4. 部分输出：每个 `text_delta` 都把 partial 提交进检查点（节流在课程范围之外）；恢复时已提交的部分输出变成 `aborted` assistant entry，检查点清空，请求用同样的消息（`inputEntryCount` 之前的 entry）从头重发——aborted entry 在边界之后，不进入重发的请求。
+- 测试怎么模拟崩溃：`store.onCommit` 在第 N 次提交后 abort `run()` 的 signal（正在跑的任务停在 `running`），拿 `store.snapshot()` 用 `DurableStore.fromSnapshot` 重新 `open`。挂起的工具与模型要响应 signal，这只是让测试进程能结束；对存储来说那一刻就是崩溃。
+- 可给提示：先让学习者把每次提交写成“这一批里有哪些写入”，再问“哪一步如果崩溃，重启后会看到什么”；工具回放卡住时只给“两边都 safe 才重跑”这一条规则。
+- 验收解释：结果 entry、任务终态与下一轮 generation 在同一次提交里出现；没有任何可见进展不先落盘；`prompt` 的用户 entry 与它触发的任务也是同一次提交。
+- 证据边界：课程只用内存存储（快照模拟重启），没有 JSONL 存储、poison、输出节流、documents 与 forks；主力 coding-agent 1.0 仍未使用 pi-durable，本章讲的是 1.0 新确立的方向。

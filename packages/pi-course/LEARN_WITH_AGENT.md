@@ -1,7 +1,7 @@
 # 和陪学 Agent 一起走这条 commit 历史
 
 这条分支的单位不是“文件”，而是“学习状态转换”。每个 `course(00)`～
-`course(14)` commit 的 parent 是起点，commit 自身是经过测试的目标。
+`course(19)` commit 的 parent 是起点，commit 自身是经过测试的目标。
 
 ## 每章固定对话
 
@@ -11,7 +11,7 @@
 npm run practice -w @pi/course -- <NN>
 ```
 
-00 会导出可直接观察的 target；01～14 以本章 parent 为起点，并额外放入
+00 会导出可直接观察的 target；01～19 以本章 parent 为起点，并额外放入
 target 的聚焦测试。少数代码量陡增的章节还会加入 learning-only scaffold：
 它只保留公共表面和显式未实现分支，不包含 target 的核心算法。`LEARNING.md`
 会逐项披露这些额外文件。练习目录没有 Git 历史，因此学生不能意外看到完整答案。
