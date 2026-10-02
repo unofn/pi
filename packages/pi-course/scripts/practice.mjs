@@ -162,6 +162,26 @@ const starterOverlays = {
         "codemode.ts 固定脚本结果、嵌套记录与 codemode 工具的公共表面，并保留 Execution 的消息分发与 finish；worker 启动与调用桥（Lab 16.1）、嵌套桥（Lab 16.2）、deadline 与取消（Lab 16.3）、工具执行（Lab 16.4）留空。",
     },
   ],
+  "17": [
+    {
+      source: "starters/17-mcp.ts",
+      destination: "src/mcp.ts",
+      description:
+        "mcp.ts 固定 JSON-RPC 类型、错误类、传输接口、内存与 stdio 传输和 McpClient 的公共表面；JSON-RPC 收窄与握手（Lab 17.1）、tools/list 翻页与 tools/call（Lab 17.2）、取消（Lab 17.3）、换行分帧与关闭（Lab 17.4）留空。",
+    },
+    {
+      source: "starters/17-mcp-runtime.ts",
+      destination: "src/mcp-runtime.ts",
+      description:
+        "mcp-runtime.ts 给出 MCP 工具适配与 mcp_servers 段落渲染，工具命名与 createMcpRuntime 留作 Lab 17.5 施工位。",
+    },
+    {
+      source: "starters/17-composition.ts",
+      destination: "src/composition.ts",
+      description:
+        "composition.ts 保留 Chapter 13 的 Runtime，只增加 SystemSectionProvider 类型与 RuntimeDeps.sectionProviders，段落合并留作 Lab 17.5 施工位。",
+    },
+  ],
 };
 
 if (!requested || !/^\d{2}$/.test(requested)) {

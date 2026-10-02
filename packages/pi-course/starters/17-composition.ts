@@ -46,6 +46,9 @@ export interface RuntimeConfig {
 }
 
 /**
+ * 这是 Chapter 17 的学习脚手架：第 13 章的 Runtime 原样保留，只增加
+ * SystemSectionProvider 类型，并把段落合并留作 Lab 17.5。
+ *
  * 额外的 system 段落来源（第 17 章的 MCP 服务器清单）。每次 prompt 前调用一次，
  * 返回的段落并入期望 system 状态，仍只在变化时打补丁。
  */
@@ -92,6 +95,10 @@ export type RuntimeMode = "interactive" | "print" | "json";
 
 export interface ModeIO {
   write(value: string): void | Promise<void>;
+}
+
+function labError(lab: string): Error {
+  return new Error(`${lab} 尚未实现`);
 }
 
 interface SystemState {
@@ -342,11 +349,9 @@ class RuntimeImpl implements Runtime {
 
   /** 期望状态 = 配置与资源的基础状态 + 各段落提供者本次给出的段落。 */
   private async desiredSystemState(): Promise<SystemState> {
-    const sections = { ...this.desiredSystem.sections };
-    for (const provider of this.deps.sectionProviders ?? []) {
-      Object.assign(sections, await provider.sections());
-    }
-    return { content: this.desiredSystem.content, sections };
+    // Lab 17.5：没有提供者时与第 13 章相同；有提供者时把它们的段落并入 sections。
+    if ((this.deps.sectionProviders ?? []).length === 0) return this.desiredSystem;
+    throw labError("Lab 17.5 sectionProviders");
   }
 
   contextSnapshot(): ContextProjectionSnapshot {

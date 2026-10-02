@@ -192,3 +192,17 @@
 - 验收解释：`codemode` 是 `model-only`：它本身在声明集合里，脚本不能递归调用它；脚本可以调用尚未声明的 `codemode` / `deferred` 工具，所以声明集合保持不变（`currentTools` 里没有它们）。失败时 `isError` 与 `details.error.kind`（`script` / `timeout` / `aborted` / `sandbox`）一起交给模型，loop 继续；loop 的 abort 让脚本以 `aborted` 结束。
 - 输出上限：给定的 prelude 对 `console.*` 计数，总字符超过 `MAX_OUTPUT_CHARS`（16 Mi）或次数超过 `MAX_OUTPUT_ITEMS`（10 万）时先以 `RangeError` 结束脚本，宿主只保留上限内的输出；这对应上游 v1.0.0 之后的修复（提交 319fecb89），防止循环打印耗尽宿主内存。
 - 证据边界：课程不实现上游的 `store()`、`image()`、`models`、`searchTools()` 与输出截断；嵌套调用走核心 `executeToolCall`，不经过第 12 章的 extension hook（可通过 `executeToolCall` 选项注入）；超时与取消用共享中断标志（`SharedArrayBuffer` 里的 Int32，由 QuickJS 的 interruptHandler 轮询）加 `worker.terminate()`；上游保留这个标志主要是为 Bun，它的 terminate 停不下空转的 wasm。
+
+## Checkpoint 17 · MCP：把外部服务器的工具接进来
+
+- 起点：第 15 章的 `deferred` 工具与 `tool_search` 已经就位，但注册表里的工具都来自进程内；本章只增加一个最小 MCP 客户端，以及把服务器工具注册进同一张注册表。
+- 目标：依次完成 JSON-RPC 收窄、内存传输与握手 `3/3`、`tools/list` 翻页与 `tools/call` `3/3`、超时与取消 `2/2`、stdio 分帧 `2/2`、命名与 Runtime 接入 `3/3`。
+- 教学文件：`starters/17-mcp.ts`、`starters/17-mcp-runtime.ts`、`starters/17-composition.ts`。第一次 build 必须通过；首红应准确显示 `Lab 17.1 isJsonRpcRequest 尚未实现`。
+- 先预测：服务器把 `nextCursor` 返回成 `null` 时应该继续翻页还是结束；一个请求超时后连接是否还能用；`initialize` 超时时客户端应不应该发 `notifications/cancelled`。
+- 协议：JSON-RPC 2.0 的 request / notification / response 用三个类型谓词互斥收窄；握手是 `initialize`（客户端给出期望版本，服务器选一个，必须在 `SUPPORTED_PROTOCOL_VERSIONS` 里）→ `notifications/initialized`；`tools/list` 跟随 `nextCursor`（`null` / 空串结束，重复 cursor 报错）；`tools/call` 的结果缺 `content` 时补空数组。
+- 超时与取消：每个在途请求有计时器与可选 signal；超时以 `McpTimeoutError`、abort 以 `McpAbortError` 拒绝，并向服务器发 `notifications/cancelled`——`initialize` 例外（规范禁止取消）。传输关闭让全部在途请求以 `McpConnectionClosedError` 拒绝，close 监听器只通知一次。
+- stdio：换行分帧与第 10 章的 JSONL 同构——只有以换行结束的行才解析，坏行只报 error 不断开；close 先关 stdin，逾期 SIGTERM，再逾期 SIGKILL。测试用一个写到临时目录的 `node` fixture，完全离线。
+- Runtime 接入：工具名是 `mcp__<server>__<tool>`，非字母数字转 `_`，冲突或超过 64 字符时加 sha256 前 8 位后缀；缺省 exposure 是 `deferred`，由 `tool_search` 按需激活，脚本（第 16 章）可直接调用。服务器清单作为 `mcp_servers` 段落经 `RuntimeDeps.sectionProviders` 并入期望 system 状态，复用第 13 章“只在变化时打补丁”；清单只写状态与工具名，不写描述。首个 prompt 只等待有 `direct` 工具的服务器，且有 `startupTimeoutMs` 上限，其余在后台连接。
+- 可给提示：先让学习者画出 `pending` 表的生命周期（登记 → 响应 / 超时 / abort / 关闭四种出口），再实现 `cancelPending`；Runtime 接入卡住时，先问“段落变化由谁比较”（答案：仍是第 13 章的 `systemPatch`）。
+- 验收解释：服务器连上并注册了 `direct` 工具后，第 15 章的 loop 还会追加一条工具声明补丁——段落补丁与声明补丁是两条独立的 system message，测试分别计数。
+- 证据边界：课程不实现 OAuth、Streamable HTTP、resources、progress 与输出截断；客户端不处理服务器发起的请求（统一回 method not found）。
