@@ -128,6 +128,11 @@ export interface ModelStream extends AsyncIterable<ModelEvent> {
   result(): Promise<AssistantMessage>;
 }
 
+/**
+ * 这是 Chapter 18 的学习脚手架：第 03 / 15 章的类型与函数原样保留，只增加
+ * ThinkingLevel 与 Model.stream 的 options 类型，没有施工位。
+ */
+
 /** 推理强度。课程 provider 不解释它，只由第 18 章的路由决定并随请求传递。 */
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high";
 

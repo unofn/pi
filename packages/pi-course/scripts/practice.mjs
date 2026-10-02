@@ -182,6 +182,38 @@ const starterOverlays = {
         "composition.ts 保留 Chapter 13 的 Runtime，只增加 SystemSectionProvider 类型与 RuntimeDeps.sectionProviders，段落合并留作 Lab 17.5 施工位。",
     },
   ],
+  "18": [
+    {
+      source: "starters/18-types.ts",
+      destination: "src/types.ts",
+      description:
+        "types.ts 只增加 ThinkingLevel 与 Model.stream 的 options 类型，没有施工位。",
+    },
+    {
+      source: "starters/18-agent-loop.ts",
+      destination: "src/agent-loop.ts",
+      description:
+        "agent-loop.ts 保留 Chapter 15 的 loop，只增加 prepareRequest 钩子的类型，请求原因与钩子调用留作 Lab 18.2 施工位。",
+    },
+    {
+      source: "starters/18-agent.ts",
+      destination: "src/agent.ts",
+      description:
+        "agent.ts 只把 AgentOptions.prepareRequest 原样交给 loop，没有施工位。",
+    },
+    {
+      source: "starters/18-composition.ts",
+      destination: "src/composition.ts",
+      description:
+        "composition.ts 保留 Chapter 17 的 Runtime，增加 RuntimeRequestSession、RuntimeDeps.prepareRequest 与 Runtime.appendMetadata 的签名；分支视角、metadata 落盘与 appendMetadata 留作 Lab 18.3 施工位。",
+    },
+    {
+      source: "starters/18-virtual-models.ts",
+      destination: "src/virtual-models.ts",
+      description:
+        "virtual-models.ts 固定 VirtualModel、目录与路由器的公共表面；previous 与路由解析（Lab 18.1）、分支上的选择、状态与路由器（Lab 18.3）留空。",
+    },
+  ],
 };
 
 if (!requested || !/^\d{2}$/.test(requested)) {

@@ -60,6 +60,10 @@ export interface SystemSectionProvider {
 }
 
 /**
+ * 这是 Chapter 18 的学习脚手架：第 17 章的 Runtime 原样保留，只增加
+ * RuntimeRequestSession / RuntimePrepareRequest 类型、RuntimeDeps.prepareRequest 与
+ * Runtime.appendMetadata 的签名；分支视角、metadata 落盘与 appendMetadata 留作 Lab 18.3。
+ *
  * 请求前钩子看到的 session 视角（第 18 章）：branch 是当前 active path 加上本轮
  * 已记录但尚未落盘的 metadata；record 只是缓冲，等本轮消息 suffix 落盘后再追加。
  */
@@ -123,6 +127,10 @@ export type RuntimeMode = "interactive" | "print" | "json";
 
 export interface ModeIO {
   write(value: string): void | Promise<void>;
+}
+
+function labError(lab: string): Error {
+  return new Error(`${lab} 尚未实现`);
 }
 
 interface SystemState {
@@ -345,25 +353,16 @@ class RuntimeImpl implements Runtime {
         message: structuredClone(message),
       });
     }
-    // 本轮记录的 metadata 跟在消息 suffix 之后落盘，顺序是一个有记录的事实。
-    for (const { key, value } of this.pendingMetadata.splice(0)) {
-      await this.appendEntry(this.metadataEntry(key, value));
+    // Lab 18.3：本轮记录的 metadata 跟在消息 suffix 之后落盘（appendEntry + metadataEntry）。
+    if (this.pendingMetadata.length > 0) {
+      throw labError("Lab 18.3 persist pending metadata");
     }
   }
 
   /** 钩子看到的分支：已落盘的 active path 加上本轮缓冲的 metadata（占位 id）。 */
   private requestSession(): RuntimeRequestSession {
-    return {
-      branch: () => {
-        const pending = this.pendingMetadata.map(({ key, value }, index) =>
-          this.metadataEntry(key, value, `__runtime_pending_${index}`),
-        );
-        return [...structuredClone(this.activePath), ...pending];
-      },
-      record: (key, value) => {
-        this.pendingMetadata.push({ key, value: structuredClone(value) });
-      },
-    };
+    // Lab 18.3：branch() 返回 activePath 深副本加上 pendingMetadata 的占位 entry；record() 只缓冲。
+    throw labError("Lab 18.3 RuntimeRequestSession");
   }
 
   prepareRequest(
@@ -373,22 +372,9 @@ class RuntimeImpl implements Runtime {
     return this.deps.prepareRequest?.(request, this.requestSession(), signal);
   }
 
-  appendMetadata(key: string, value: JsonValue): Promise<void> {
-    if (this.disposed) {
-      return Promise.reject(new Error("Runtime 已 dispose"));
-    }
-    if (this.poisoned) {
-      return Promise.reject(this.poisonCause);
-    }
-    const operation = this.operationTail.then(async () => {
-      this.assertHealthy();
-      await this.appendEntry(this.metadataEntry(key, value));
-    });
-    this.operationTail = operation.then(
-      () => undefined,
-      () => undefined,
-    );
-    return operation;
+  appendMetadata(_key: string, _value: JsonValue): Promise<void> {
+    // Lab 18.3：与 prompt 同一条 operationTail；disposed / poisoned 时拒绝；追加一条 metadata entry。
+    return Promise.reject(labError("Lab 18.3 Runtime.appendMetadata"));
   }
 
   prompt(value: string): Promise<AgentRunResult> {

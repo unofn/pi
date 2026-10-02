@@ -15,6 +15,10 @@ import {
   type UserMessage,
 } from "./types.js";
 
+/**
+ * 这是 Chapter 18 的学习脚手架：第 13 章的 Agent 原样保留，只增加
+ * AgentOptions.prepareRequest 并原样交给 loop，没有施工位。
+ */
 export interface AgentOptions {
   model: Model;
   tools: ToolRegistry;

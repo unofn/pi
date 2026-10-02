@@ -206,3 +206,16 @@
 - 可给提示：先让学习者画出 `pending` 表的生命周期（登记 → 响应 / 超时 / abort / 关闭四种出口），再实现 `cancelPending`；Runtime 接入卡住时，先问“段落变化由谁比较”（答案：仍是第 13 章的 `systemPatch`）。
 - 验收解释：服务器连上并注册了 `direct` 工具后，第 15 章的 loop 还会追加一条工具声明补丁——段落补丁与声明补丁是两条独立的 system message，测试分别计数。
 - 证据边界：课程不实现 OAuth、Streamable HTTP、resources、progress 与输出截断；客户端不处理服务器发起的请求（统一回 method not found）。
+
+## Checkpoint 18 · 虚拟模型：选择与派发分离
+
+- 起点：第 13 章的 Runtime 把一个固定的 `Model` 交给 Agent；本章只增加“每次请求前决定用哪个物理模型”的钩子，以及把这个决定的状态留在分支上。
+- 目标：依次完成目录与路由解析 `3/3`、loop 的 `prepareRequest` 钩子 `3/3`、分支上的选择与状态 `4/4`。
+- 教学文件：`starters/18-types.ts` 与 `starters/18-agent.ts` 只加类型与透传，没有施工位；`starters/18-agent-loop.ts`（Lab 18.2）、`starters/18-virtual-models.ts`（Lab 18.1、18.3）、`starters/18-composition.ts`（Lab 18.3）。第一次 build 必须通过；首红应准确显示 `Lab 18.1 findLatestResponse 尚未实现`。
+- 先预测：路由器把请求转给另一个虚拟模型时应该递归路由还是报错；上一轮以 error 结束时，`previous` 应该指向谁；路由状态应该写进 transcript 还是 session。
+- 结构：`VirtualModel { id; route(request) → { model; thinkingLevel?; state? } }` 只做选择；`ModelCatalog` 同时登记物理与虚拟模型，id 唯一；`resolveRoute` 把虚拟选择换成目录里的物理模型，路由到虚拟模型、未注册或 `route()` 抛错都以异常结束。loop 在每次请求前（工具声明补丁之后）调用 `prepareRequest(request, signal)`，用它换入的模型与 `thinkingLevel` 发请求；钩子抛错以 error 回复结束本次请求，provider 永远只见到物理模型。
+- 请求原因：`user`（最近一次回复之后有用户消息）、`continuation`（工具结果之后）、`retry`（transcript 以失败回复结尾且其后没有用户消息——只有直接调用 `runAgentLoop` 重发才会出现；Agent 的 `prompt()` 总会先追加用户消息）、`direct`（loop 之外的请求，经 `routeDirect`，不读不写状态）。`previous` 跳过 error 与 aborted 回复。
+- 分支上的事实：选择是 `metadata` entry `model_change`（`{ modelId }`），状态是 `virtual_model_state`（`{ modelId, state }`），都按分支从后往前查最近一条。Runtime 的 `RuntimeDeps.prepareRequest(request, session, signal)` 给钩子一个 session 视角：`branch()` 是已落盘的 active path 加上本轮缓冲的记录；`record()` 只缓冲，本轮消息 suffix 落盘之后再追加——顺序是一个有记录的事实（测试断言了 entry 顺序）。状态只在变化（按 JSON 比较）时记录；派发记录在每条 assistant 消息自己的 `model` 字段上。`Runtime.appendMetadata` 与 prompt 排在同一队列，`selectModel()` 用它写 `model_change`。
+- 可给提示：先让学习者把“选择”和“派发”分别对应到 session entry 与 assistant 消息，再实现 `resolveRoute`；Runtime 接入卡住时，先问“钩子记录的状态什么时候落盘、落在哪条消息之后”。
+- 验收解释：路由不改写 transcript——钩子看到的 `context` 是 loop 的活对象，之后 loop 只会往后追加；恢复会话时，从 active path 重放出选择与状态，第三次路由从 `count=2` 继续。
+- 证据边界：课程的 `retry` 只来自直接重发的 transcript 形状，loop 自己不重试；`thinkingLevel` 只随 `stream(context, options)` 传给物理模型，第 05 章 adapter 不解释它；上游还会把虚拟模型列进 provider 目录并做 thinking level 的裁剪，课程只在 `:::pi` 中说明。

@@ -41,6 +41,9 @@ export interface AgentRunResult {
 }
 
 /**
+ * 这是 Chapter 18 的学习脚手架，不是参考实现：第 15 章的 loop 原样保留，
+ * 只增加 prepareRequest 钩子的类型，并把请求原因与钩子调用留作 Lab 18.2。
+ *
  * 为什么发出这次请求：
  * - user：最近一次回复之后有用户写的消息（prompt、steering、follow-up）；
  * - continuation：loop 内的其他请求，例如工具结果之后；
@@ -89,6 +92,10 @@ export interface AgentLoopOptions {
    * 课程增强：防止错误脚本无限循环。它不是上游 Pi 核心的同名保证。
    */
   maxSteps?: number;
+}
+
+function labError(lab: string): Error {
+  return new Error(`${lab} 尚未实现`);
 }
 
 function emit(
@@ -213,26 +220,14 @@ function declareToolChanges(
 
 /** 从 transcript 尾部判断请求原因；retry 时附带那条失败回复。 */
 export function requestReason(
-  messages: readonly AgentMessage[],
+  _messages: readonly AgentMessage[],
 ): { reason: RequestReason; failed?: AssistantMessage } {
-  let lastAssistant = -1;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index]!.role === "assistant") {
-      lastAssistant = index;
-      break;
-    }
-  }
-  const tail = messages.slice(lastAssistant + 1);
-  if (tail.some((message) => message.role === "user")) return { reason: "user" };
-  const last = lastAssistant >= 0 ? messages[lastAssistant] : undefined;
-  if (
-    last?.role === "assistant" &&
-    (last.stopReason === "error" || last.stopReason === "aborted") &&
-    tail.length === 0
-  ) {
-    return { reason: "retry", failed: last };
-  }
-  return { reason: "continuation" };
+  // Lab 18.2：最后一条 assistant 之后有 user → user；没有且它是 error / aborted → retry（带 failed）；否则 continuation。
+  throw labError("Lab 18.2 requestReason");
+}
+
+function prepareRequestHole(): PreparedRequest | undefined {
+  throw labError("Lab 18.2 prepareRequest hook");
 }
 
 function failedModelTurn(
@@ -288,14 +283,12 @@ export async function runAgentLoop(
         messages,
         tools: options.tools.definitions(),
       };
-      // 请求前的钩子只决定“用哪个物理模型、什么推理强度”，看不到也改不了 transcript。
-      // 没有钩子时不引入额外的 await：第 09 章的事件顺序依赖这里不多等一个 microtask。
-      const prepared = options.prepareRequest
-        ? await options.prepareRequest(
-            { context, model: options.model, ...requestReason(messages) },
-            options.signal,
-          )
+      // Lab 18.2：有钩子时先 await 它（传 context、配置的模型、requestReason 的结果与 signal），
+      // 用它换入的模型与 thinkingLevel 发请求；钩子抛错由外层 catch 变成 error 回复。
+      const prepared: PreparedRequest | undefined = options.prepareRequest
+        ? prepareRequestHole()
         : undefined;
+      void requestReason;
       const model = prepared?.model ?? options.model;
       const stream = model.stream(context, {
         signal: options.signal,
