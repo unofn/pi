@@ -11,7 +11,7 @@ const requested = process.argv[2]?.padStart(2, "0");
 
 if (!requested || !/^\d{2}$/.test(requested)) {
   process.stderr.write(
-    "用法：npm run checkpoint -w @pi/course -- <00..14>\n",
+    "用法：npm run checkpoint -w @pi/course -- <00..19>\n",
   );
   process.exit(1);
 }

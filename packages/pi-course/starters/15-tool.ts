@@ -6,6 +6,10 @@ import {
   type ToolResultMessage,
 } from "./types.js";
 
+function labError(lab: string): Error {
+  return new Error(`${lab} 尚未实现`);
+}
+
 export interface Schema<T> {
   parse(value: unknown): T;
   jsonSchema?: Record<string, unknown>;
@@ -101,6 +105,9 @@ export type ToolExecutor = (
 ) => Promise<ToolResultMessage>;
 
 /**
+ * 这是 Chapter 15 的学习脚手架，不是参考实现：第 06 章的 validator、Schema
+ * 与 executor 原样保留，只有 exposure 推导出的两个集合与作用域把门留作 Lab 15.1。
+ *
  * 工具暴露级别，与上游 Pi 1.0 同名：
  * - direct：声明给模型，也可被脚本调用（默认）；
  * - model-only：只声明给模型，脚本不能调用（如 tool_search、codemode 本身）；
@@ -158,10 +165,8 @@ export class ToolRegistry {
       throw new Error(`Tool 已存在：${tool.name}`);
     }
     this.tools.set(tool.name, tool as Tool<unknown, unknown>);
-    const exposure = tool.exposure ?? "direct";
-    if (exposure === "direct" || exposure === "model-only") {
-      this.active.add(tool.name);
-    }
+    // Lab 15.1：direct 与 model-only 注册即激活；codemode / deferred 等待激活；hidden 永不激活。
+    throw labError("Lab 15.1 ToolRegistry.register exposure");
   }
 
   get(name: string): Tool<unknown, unknown> | undefined {
@@ -172,55 +177,36 @@ export class ToolRegistry {
     return [...this.tools.values()];
   }
 
-  exposureOf(name: string): ToolExposure | undefined {
-    const tool = this.tools.get(name);
-    return tool ? (tool.exposure ?? "direct") : undefined;
+  exposureOf(_name: string): ToolExposure | undefined {
+    throw labError("Lab 15.1 ToolRegistry.exposureOf");
   }
 
   /** 是否有任何工具的 exposure 不是 direct：只有这时声明集合才可能与全集不同。 */
   usesExposure(): boolean {
-    return this.list().some((tool) => (tool.exposure ?? "direct") !== "direct");
+    throw labError("Lab 15.1 ToolRegistry.usesExposure");
   }
 
   /** 把 codemode / deferred 工具加入声明集合；未知与 hidden 名字被忽略。返回新激活的名字。 */
-  activate(names: readonly string[]): string[] {
-    const activated: string[] = [];
-    for (const name of names) {
-      const exposure = this.exposureOf(name);
-      if (exposure === undefined || exposure === "hidden") continue;
-      if (this.active.has(name)) continue;
-      this.active.add(name);
-      activated.push(name);
-    }
-    return activated;
+  activate(_names: readonly string[]): string[] {
+    throw labError("Lab 15.1 ToolRegistry.activate");
   }
 
-  isActive(name: string): boolean {
-    return this.active.has(name);
+  isActive(_name: string): boolean {
+    throw labError("Lab 15.1 ToolRegistry.isActive");
   }
 
   /** 声明集合：已激活且非 hidden 的工具，按注册顺序。 */
   declared(): Tool<unknown, unknown>[] {
-    return this.list().filter(
-      (tool) => this.active.has(tool.name) && tool.exposure !== "hidden",
-    );
+    throw labError("Lab 15.1 ToolRegistry.declared");
   }
 
   /** 可调用集合（脚本视角）：全部 codemode / deferred 工具，加上已激活的 direct 工具。 */
   callable(): Tool<unknown, unknown>[] {
-    return this.list().filter((tool) => {
-      const exposure = tool.exposure ?? "direct";
-      return (
-        exposure === "codemode" ||
-        exposure === "deferred" ||
-        (exposure === "direct" && this.active.has(tool.name))
-      );
-    });
+    throw labError("Lab 15.1 ToolRegistry.callable");
   }
 
-  canCall(name: string, scope: ToolCallScope): boolean {
-    const tools = scope === "model" ? this.declared() : this.callable();
-    return tools.some((tool) => tool.name === name);
+  canCall(_name: string, _scope: ToolCallScope): boolean {
+    throw labError("Lab 15.1 ToolRegistry.canCall");
   }
 
   /** 交给模型的工具清单，就是声明集合。 */
@@ -245,6 +231,15 @@ function failedResult(
   };
 }
 
+/** Lab 15.1：按 scope 用 canCall 把门；不允许时返回错误原因，允许时返回 undefined。 */
+function scopeDenial(
+  _registry: ToolRegistry,
+  _name: string,
+  _scope: ToolCallScope,
+): Error | undefined {
+  throw labError("Lab 15.1 executeToolCall scope");
+}
+
 /**
  * 模型发起的调用只能命中声明集合，脚本发起的调用只能命中可调用集合；
  * 两者之外的名字与未知工具一样，得到配对的错误结果而不是异常。
@@ -257,16 +252,8 @@ export async function executeToolCall(
 ): Promise<ToolResultMessage> {
   const tool = registry.get(call.name);
   if (!tool) return failedResult(call, new Error("未知工具"));
-  if (!registry.canCall(call.name, scope)) {
-    return failedResult(
-      call,
-      new Error(
-        scope === "model"
-          ? "工具未声明给模型"
-          : "工具不在脚本的可调用集合里",
-      ),
-    );
-  }
+  const denied = scopeDenial(registry, call.name, scope);
+  if (denied) return failedResult(call, denied);
 
   try {
     const parameters = tool.schema.parse(call.arguments);

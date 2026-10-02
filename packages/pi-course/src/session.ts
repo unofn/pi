@@ -11,6 +11,8 @@ import type {
   SystemMessage,
   TextContent,
   ToolCall,
+  ToolDefinition,
+  ToolReference,
   ToolResultMessage,
   Usage,
   UserMessage,
@@ -280,7 +282,11 @@ function systemMessageAt(
   record: Record<string, unknown>,
   label: string,
 ): SystemMessage {
-  exactKeys(record, ["role", "content", "sections", "timestamp"], label);
+  exactKeys(
+    record,
+    ["role", "content", "sections", "toolsAdded", "toolsRemoved", "timestamp"],
+    label,
+  );
   if (typeof record.content !== "string") {
     throw new Error(`${label}.content 必须是 string`);
   }
@@ -302,7 +308,65 @@ function systemMessageAt(
     }
     message.sections = parsed;
   }
+  if (own(record, "toolsAdded")) {
+    message.toolsAdded = toolDefinitionsAt(
+      record.toolsAdded,
+      `${label}.toolsAdded`,
+    );
+  }
+  if (own(record, "toolsRemoved")) {
+    message.toolsRemoved = toolReferencesAt(
+      record.toolsRemoved,
+      `${label}.toolsRemoved`,
+    );
+  }
   return message;
+}
+
+/**
+ * 工具声明只有模型看得到的三个字段；parameters 必须是可序列化的 JSON object。
+ * 空列表没有意义：loop 生成补丁时会省略空字段，所以空列表按不合法拒绝。
+ */
+function toolDefinitionsAt(value: unknown, label: string): ToolDefinition[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${label} 必须是非空 array`);
+  }
+  return value.map((item, index) => {
+    const itemLabel = `${label}[${index}]`;
+    const record = recordAt(item, itemLabel);
+    exactKeys(record, ["name", "description", "parameters"], itemLabel);
+    if (typeof record.description !== "string") {
+      throw new Error(`${itemLabel}.description 必须是 string`);
+    }
+    const parameters = jsonValueAt(
+      record.parameters,
+      `${itemLabel}.parameters`,
+    );
+    if (
+      parameters === null ||
+      typeof parameters !== "object" ||
+      Array.isArray(parameters)
+    ) {
+      throw new Error(`${itemLabel}.parameters 必须是 JSON object`);
+    }
+    return {
+      name: nonEmptyString(record.name, `${itemLabel}.name`),
+      description: record.description,
+      parameters,
+    };
+  });
+}
+
+function toolReferencesAt(value: unknown, label: string): ToolReference[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${label} 必须是非空 array`);
+  }
+  return value.map((item, index) => {
+    const itemLabel = `${label}[${index}]`;
+    const record = recordAt(item, itemLabel);
+    exactKeys(record, ["name"], itemLabel);
+    return { name: nonEmptyString(record.name, `${itemLabel}.name`) };
+  });
 }
 
 function stringArrayAt(value: unknown, label: string): string[] {

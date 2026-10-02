@@ -116,11 +116,37 @@ const starterOverlays = {
         "tsconfig.json 只增加 test-support 的编译入口，让 Chapter 13 parent 加上本章脚手架后可以先通过 build。",
     },
   ],
+  "15": [
+    {
+      source: "starters/15-types.ts",
+      destination: "src/types.ts",
+      description:
+        "types.ts 保留 Chapter 03 的消息 IR 与 system 重放，只增加 toolsAdded/toolsRemoved 类型，并把 Lab 15.2 的工具重放与比较施工位留空。",
+    },
+    {
+      source: "starters/15-tool.ts",
+      destination: "src/tool.ts",
+      description:
+        "tool.ts 保留 Chapter 06 的 validator、Schema 与 executor，只增加 exposure、声明集合、可调用集合与调用作用域的签名，以及 Lab 15.1 的明确施工位；不包含集合推导或把门算法。",
+    },
+    {
+      source: "starters/15-agent-loop.ts",
+      destination: "src/agent-loop.ts",
+      description:
+        "agent-loop.ts 保留 Chapter 09 的完整 loop，只把请求前的工具声明补丁留作 Lab 15.3 施工位。",
+    },
+    {
+      source: "starters/15-tool-search.ts",
+      destination: "src/tool-search.ts",
+      description:
+        "tool-search.ts 给出分词与检索文本，排序与 tool_search 的激活逻辑留作 Lab 15.4 施工位。",
+    },
+  ],
 };
 
 if (!requested || !/^\d{2}$/.test(requested)) {
   process.stderr.write(
-    "用法：npm run practice -w @pi/course -- <00..14> [输出目录]\n",
+    "用法：npm run practice -w @pi/course -- <00..19> [输出目录]\n",
   );
   process.exit(1);
 }

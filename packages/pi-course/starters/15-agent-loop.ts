@@ -54,6 +54,10 @@ export interface AgentLoopOptions {
   maxSteps?: number;
 }
 
+function labError(lab: string): Error {
+  return new Error(`${lab} 尚未实现`);
+}
+
 function emit(
   options: AgentLoopOptions,
   event: LoopEvent,
@@ -140,6 +144,9 @@ function declaresTools(messages: readonly AgentMessage[]): boolean {
 }
 
 /**
+ * 这是 Chapter 15 的学习脚手架，不是参考实现：第 09 章的 loop 原样保留，
+ * 只把请求前的工具声明补丁留作 Lab 15.3。
+ *
  * 把本次请求的声明集合与 transcript 重放出的工具集合比较，只在有差异时
  * 生成一条只含 toolsAdded / toolsRemoved 的 system 补丁。全 direct 的注册表
  * （第 06–14 章的世界）不写补丁：那时 context.tools 就是全部事实；一旦
@@ -147,31 +154,15 @@ function declaresTools(messages: readonly AgentMessage[]): boolean {
  * transcript。补丁只追加，从不改写已有前缀。
  */
 function declareToolChanges(
-  messages: readonly AgentMessage[],
-  registry: ToolRegistry,
+  _messages: readonly AgentMessage[],
+  _registry: ToolRegistry,
 ): SystemMessage | undefined {
-  if (!registry.usesExposure() && !declaresTools(messages)) return undefined;
-  const changes = toolStateChanges(
-    currentTools(messages),
-    registry.definitions(),
-  );
-  if (
-    changes.toolsAdded.length === 0 &&
-    changes.toolsRemoved.length === 0
-  ) {
-    return undefined;
-  }
-  return {
-    role: "system",
-    content: "",
-    ...(changes.toolsAdded.length > 0
-      ? { toolsAdded: changes.toolsAdded }
-      : {}),
-    ...(changes.toolsRemoved.length > 0
-      ? { toolsRemoved: changes.toolsRemoved }
-      : {}),
-    timestamp: Date.now(),
-  };
+  // Lab 15.3：全 direct 且 transcript 没有声明时返回 undefined；否则比较
+  // currentTools(messages) 与 registry.definitions()，只在有差异时生成补丁。
+  void declaresTools;
+  void currentTools;
+  void toolStateChanges;
+  throw labError("Lab 15.3 declareToolChanges");
 }
 
 function failedModelTurn(

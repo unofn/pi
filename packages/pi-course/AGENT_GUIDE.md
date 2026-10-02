@@ -166,3 +166,15 @@
 - 公开施工顺序：先完成隔离执行与冻结 observation `3/3`，再完成 active-path 协议和失败分层 `4/4`，最后完成安全报告、主次 cleanup 与顺序 suite `3/3`。协议判断必须同时核对 session path 与 Runtime 返回的 transcript；报告不能携带原始消息、文件内容、路径、callId、异常正文或 stack。
 - system message：active path 校验接受 `role: "system"`（开头的基础 prompt 和之后的补丁都是普通 message entry），它们只计入 `evidence.messages.system`，不参与 tool call / result 配对检查，也不能替代缺失的 tool result。
 - held-out 边界：Lab 14.4 的三项测试只存在于 target 和最终 full gate，`practice 14` 不会复制它们。它们会更换 case id、prompt、路径、callId 和故障参数；陪练只能根据公开契约解释失败，不能读取或转述 held-out fixture。
+
+## Checkpoint 15 · 工具暴露：谁能看见、谁能调用
+
+- 起点：第 14 章的完整 Runtime 把注册表里的全部工具交给模型；本章只增加“声明集合”与“可调用集合”的区分，以及把声明变化写进 transcript。
+- 目标：依次完成 exposure 与两个集合 `3/3`、transcript 的工具重放与严格 parser `3/3`、loop 的声明补丁 `3/3`、`tool_search` `3/3`。
+- 教学文件：同时使用 `starters/15-types.ts`、`starters/15-tool.ts`、`starters/15-agent-loop.ts` 与 `starters/15-tool-search.ts`；它们保留第 03、06、09 章的实现，只挖本章接缝。第一次 build 必须通过；首红应准确显示 `Lab 15.1 ToolRegistry.register exposure 尚未实现`。
+- 先预测：一个 `deferred` 工具在被 `tool_search` 激活前，模型直接调用它会发生什么；全 direct 的注册表跑一次工具往返后，transcript 里会不会多出 system message。
+- 五种 exposure 与上游同名：`direct` 声明且可调用；`model-only` 只声明给模型（`tool_search`、第 16 章的 `codemode`）；`codemode` / `deferred` 注册即可被脚本调用，但只有激活后才声明；`hidden` 既不声明也不可调用。两个集合都从同一张注册表推导：`definitions()` 就是声明集合，`callable()` 是脚本视角。`executeToolCall(call, registry, context, scope)` 按 `scope`（`model` / `script`）把门，拒绝时仍返回与 call 配对的错误结果。
+- 声明补丁：`SystemMessage` 多了 `toolsAdded` / `toolsRemoved`；`currentTools(messages)` 先删后加按顺序重放。loop 在每次请求前比较 `currentTools(messages)` 与 `registry.definitions()`，只在有差异时追加一条 `content: ""` 的 system 补丁，位置在本轮已有消息之后、请求之前（上游插在用户消息之前；课程追加在之后，因为 loop 只能追加）。全 direct 且 transcript 没有任何声明时不写补丁，这保证第 07–14 章的 transcript 一字不变。
+- 可给提示：先让学习者在纸上写出一张五行表（exposure → 声明？可调用？），再实现 `declared()` / `callable()`；补丁实现卡住时，只给“重放 → 比较 → 空则不追加”的伪代码。
+- 验收解释：provider 仍从 `context.tools` 读工具（第 05 章 adapter 不变），transcript 里的声明是“模型当时看到了什么”的事实记录；补丁只追加，`toolsRemoved` 也只在新补丁里出现，已持久化前缀永不改写。严格 parser 要求 `toolsAdded` / `toolsRemoved` 非空：空列表由 loop 省略字段表达。
+- 证据边界：课程排序用词项重叠，不是上游的 BM25；`codemode` 暴露在本章只决定“可调用、可搜索、不声明”，脚本真正调用它留到第 16 章。

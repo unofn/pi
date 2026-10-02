@@ -1,0 +1,139 @@
+import {
+  objectSchema,
+  optionalPositiveInteger,
+  stringValue,
+  type Tool,
+  type ToolRegistry,
+} from "./tool.js";
+import { text } from "./types.js";
+
+/**
+ * 这是 Chapter 15 的学习脚手架，不是参考实现：分词与检索文本已经给出，
+ * 排序与激活留作 Lab 15.4。
+ */
+function labError(lab: string): Error {
+  return new Error(`${lab} 尚未实现`);
+}
+
+export const TOOL_SEARCH_TOOL_NAME = "tool_search";
+export const DEFAULT_TOOL_SEARCH_LIMIT = 8;
+
+/** 排序器看到的一个工具：名字，以及由 toolSearchDocument 拼出的检索文本。 */
+export interface ToolSearchDocument {
+  name: string;
+  text: string;
+}
+
+export interface ToolSearchMatch {
+  name: string;
+  score: number;
+}
+
+export interface ToolSearchDetails {
+  /** 本次调用激活的工具。 */
+  loaded: string[];
+}
+
+const STOP_WORDS: ReadonlySet<string> = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in",
+  "is", "it", "of", "on", "or", "that", "the", "this", "to", "with",
+]);
+
+/** 朴素单数化：issues → issue，searches → search。 */
+function stem(term: string): string {
+  if (term.length > 4 && term.endsWith("ies")) return `${term.slice(0, -3)}y`;
+  if (term.length > 4 && /(ches|shes|sses|xes|zes)$/.test(term)) {
+    return term.slice(0, -2);
+  }
+  if (term.length > 3 && term.endsWith("s") && !term.endsWith("ss")) {
+    return term.slice(0, -1);
+  }
+  return term;
+}
+
+/** 小写词项：在 camelCase 边界与非字母数字处切分，去掉停用词。 */
+export function tokenize(value: string): string[] {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((term) => term.length > 0 && !STOP_WORDS.has(term))
+    .map(stem);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** 递归收集 schema 的 description 与属性名。 */
+function schemaText(schema: unknown, parts: string[]): void {
+  if (!isRecord(schema)) return;
+  if (typeof schema.description === "string") parts.push(schema.description);
+  if (isRecord(schema.properties)) {
+    for (const [name, property] of Object.entries(schema.properties)) {
+      parts.push(name);
+      schemaText(property, parts);
+    }
+  }
+  schemaText(schema.items, parts);
+}
+
+/** 一个工具的检索文本：名字、把 `_` 当空格的名字、描述、schema 的描述与属性名。 */
+export function toolSearchDocument(
+  tool: Pick<Tool, "name" | "description" | "schema">,
+): ToolSearchDocument {
+  const parts = [tool.name, tool.name.replaceAll("_", " "), tool.description];
+  schemaText(tool.schema.jsonSchema, parts);
+  return {
+    name: tool.name,
+    text: parts.filter((part) => part.trim().length > 0).join(" "),
+  };
+}
+
+/**
+ * 课程版排序：按“查询词项与文档词项的重叠个数”打分（上游用 BM25）。
+ * 分数相同保持文档顺序；没有任何重叠的文档不进入结果。
+ */
+export function rankTools(
+  _query: string,
+  _documents: readonly ToolSearchDocument[],
+  _limit: number,
+): ToolSearchMatch[] {
+  // Lab 15.4：查询词项去重后数重叠个数；0 分不入选；按分数降序、同分保持文档顺序，再截断。
+  throw labError("Lab 15.4 rankTools");
+}
+
+export interface ToolSearchOptions {
+  /** 每次最多激活多少个工具；缺省 8。 */
+  limit?: number;
+}
+
+/**
+ * tool_search 是一个 model-only 工具：对尚未声明的 codemode / deferred 工具
+ * 做关键词排序，把命中的工具激活，下一次请求的声明补丁就会把它们交给模型。
+ * 描述里刻意不列出可搜索的工具，这样 MCP 服务器连上时它的声明也不会变。
+ */
+export function createToolSearchTool(
+  registry: ToolRegistry,
+  options: ToolSearchOptions = {},
+): Tool<{ query: string; limit: number | undefined }, ToolSearchDetails> {
+  const defaultLimit = options.limit ?? DEFAULT_TOOL_SEARCH_LIMIT;
+  return {
+    name: TOOL_SEARCH_TOOL_NAME,
+    description:
+      "Search tools that are not loaded yet by keyword and load the matches; they are declared from your next call.",
+    schema: objectSchema({
+      query: stringValue,
+      limit: optionalPositiveInteger,
+    }),
+    exposure: "model-only",
+    async execute({ query, limit }) {
+      // Lab 15.4：空 query 报错；只搜索未激活的 codemode / deferred 工具；激活命中者并返回 loaded 明细。
+      void query;
+      void limit;
+      void defaultLimit;
+      throw labError("Lab 15.4 tool_search execute");
+    },
+  };
+}

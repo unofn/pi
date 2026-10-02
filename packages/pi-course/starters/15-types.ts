@@ -135,6 +135,10 @@ export interface Model {
   ): ModelStream;
 }
 
+function labError(lab: string): Error {
+  return new Error(`${lab} 尚未实现`);
+}
+
 export const EMPTY_USAGE: Usage = {
   input: 0,
   output: 0,
@@ -206,22 +210,18 @@ export function currentSystemPrompt(
 }
 
 /**
+ * 这是 Chapter 15 的学习脚手架，不是参考实现：第 03 章的类型与重放函数
+ * 原样保留，只有工具声明的重放与比较留作 Lab 15.2。
+ *
  * 按顺序重放所有 system message 的 toolsRemoved / toolsAdded，得到此刻对模型
  * 可见的工具集合。先删后加，所以同一条消息里“删除再声明”等于重新定义。
  * 返回值按首次声明顺序排列，并与 transcript 不共享引用。
  */
 export function currentTools(
-  messages: readonly AgentMessage[],
+  _messages: readonly AgentMessage[],
 ): ToolDefinition[] {
-  const tools = new Map<string, ToolDefinition>();
-  for (const message of messages) {
-    if (message.role !== "system") continue;
-    for (const tool of message.toolsRemoved ?? []) tools.delete(tool.name);
-    for (const tool of message.toolsAdded ?? []) {
-      tools.set(tool.name, toToolDeclaration(tool));
-    }
-  }
-  return [...tools.values()];
+  // Lab 15.2：按顺序重放每条 system message 的 toolsRemoved 与 toolsAdded。
+  throw labError("Lab 15.2 currentTools");
 }
 
 /** 只保留模型看得到的三个字段，并做一次 JSON 往返，让比较与持久化看到同一形状。 */
@@ -257,25 +257,11 @@ export interface ToolStateChanges {
  * toolsAdded 里：重放时先删后加，就得到新定义。
  */
 export function toolStateChanges(
-  previous: readonly ToolDefinition[],
-  current: readonly ToolDefinition[],
+  _previous: readonly ToolDefinition[],
+  _current: readonly ToolDefinition[],
 ): ToolStateChanges {
-  const previousByName = new Map(previous.map((tool) => [tool.name, tool]));
-  const currentByName = new Map(current.map((tool) => [tool.name, tool]));
-  return {
-    toolsAdded: current
-      .filter((tool) => {
-        const before = previousByName.get(tool.name);
-        return before === undefined || !declarationsEqual(before, tool);
-      })
-      .map(toToolDeclaration),
-    toolsRemoved: previous
-      .filter((tool) => {
-        const after = currentByName.get(tool.name);
-        return after === undefined || !declarationsEqual(tool, after);
-      })
-      .map((tool) => ({ name: tool.name })),
-  };
+  // Lab 15.2：新增或定义变化的进 toolsAdded；消失或定义变化的进 toolsRemoved。
+  throw labError("Lab 15.2 toolStateChanges");
 }
 
 export function assistantMessage(
